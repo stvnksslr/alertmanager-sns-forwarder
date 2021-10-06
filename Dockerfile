@@ -1,28 +1,13 @@
-# builder image
-FROM golang:alpine as builder
+# Build Stage
+FROM golang:1.17-bullseye as build
 
-RUN set -ex && apk --update --no-cache add \
-    git \
-    make
+WORKDIR /app
+COPY ./ ./
+RUN go build
 
-RUN adduser -D -g '' forwarder
+# Runner Image
+FROM debian:bullseye-slim as run
+COPY --from=build /app/alertmanager-sns-forwarder .
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-WORKDIR /go/src/github.com/DataReply/alertmanager-sns-forwarder
-COPY . .
-RUN make all
-
-# final image
-FROM scratch
-LABEL maintainer="o.grodzki@reply.de"
-
-# Add sh and other tools for debugging the container
-#COPY --from=builder /lib/ld-musl-x86_64.so.1 /lib/ld-musl-x86_64.so.1
-#COPY --from=builder /bin/ /bin/
-
-COPY --from=builder /etc/passwd /etc/passwd
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY --from=builder /go/src/github.com/DataReply/alertmanager-sns-forwarder/bin/linux/alertmanager-sns-forwarder /bin/alertmanager-sns-forwarder
-
-USER forwarder
-
-ENTRYPOINT ["/bin/alertmanager-sns-forwarder"]
+CMD "./alertmanager-sns-forwarder"

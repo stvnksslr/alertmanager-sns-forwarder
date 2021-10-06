@@ -23,7 +23,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/gin-gonic/gin"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 // Alerts is a structure for grouping Prometheus Alerts
@@ -132,7 +132,7 @@ func main() {
 		config.Region = &arnRegion
 	}
 
-	session, err := session.NewSessionWithOptions(session.Options{
+	awsSession, err := session.NewSessionWithOptions(session.Options{
 		Config: *config,
 	})
 
@@ -143,15 +143,15 @@ func main() {
 
 	if *arnPrefix == "" || !arnutil.ValidateARN(*arnPrefix) {
 		log.Warn("ARN prefix not supplied or wrong, will try to detect")
-		detectedArnPrefix, err := arnutil.DetectARNPrefix(session)
+		detectedArnPrefix, err := arnutil.DetectARNPrefix(awsSession)
 		if err != nil {
 			log.Warnf("ARN prefix could not be detected, underlying problem is: %s. You will need to use the full topic ARN in the POST URL.", err)
-
 		}
+
 		arnPrefix = &detectedArnPrefix
 	}
 
-	svc = sns.New(session)
+	svc = sns.New(awsSession)
 
 	if !*debug {
 		gin.SetMode(gin.ReleaseMode)
@@ -167,7 +167,10 @@ func main() {
 
 	log.Info("listening on", *listenAddr)
 
-	router.Run(*listenAddr)
+	err = router.Run(*listenAddr)
+	if err != nil {
+		return 
+	}
 }
 
 func registerCustomPrometheusMetrics() {
@@ -246,7 +249,10 @@ func alertPOSTHandler(c *gin.Context) {
 	if templatePath != nil && tmpH != nil {
 		var alerts Alerts
 
-		json.Unmarshal(requestData, &alerts)
+		err := json.Unmarshal(requestData, &alerts)
+		if err != nil {
+			return
+		}
 
 		requestString = AlertFormatTemplate(alerts)
 	}
