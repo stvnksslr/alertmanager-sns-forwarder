@@ -4,6 +4,8 @@
 # OSX trash
 .DS_Store
 
+alertmanager-sns-forwarder
+
 # Eclipse files
 .classpath
 .project
